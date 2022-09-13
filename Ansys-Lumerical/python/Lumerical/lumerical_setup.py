@@ -14,6 +14,6 @@ def register_lumerical_menu():
         menu.insert_menu("help_menu", s_1, "Ansys Lumerical")
 
     s_2 = "interconnect"
-    if not(menu.is_menu(s_1 + "." + s_2)):
-        menu.insert_menu(s_1 + ".end", s_2, "Circuits Simulation")
+    if not menu.is_menu(f"{s_1}.{s_2}"):
+        menu.insert_menu(f"{s_1}.end", s_2, "Circuits Simulation")
     

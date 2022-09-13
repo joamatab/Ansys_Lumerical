@@ -8,10 +8,7 @@ import pya
 
 
 def has_duplicates(value):
-    if len(value) != len(set(value)):
-        return True
-    else:
-        return False
+    return len(value) != len(set(value))
 
 def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
@@ -32,7 +29,7 @@ def trim_netlist_ansys(nets, components, selected_component, verbose=None):
             first_set = set(net_idx[count])
             # second set is formed of elements from current + 1 to forward
             second_set = set(net_idx[i])
-            if len(first_set.intersection(second_set)) > 0:  # if there are common elements between two sets
+            if first_set.intersection(second_set):  # if there are common elements between two sets
                 net_idx.pop(i)  # remove the nets from the list
                 net_idx.pop(count)  # remove the count net as well
                 # merged them and add to the list
@@ -107,15 +104,22 @@ def get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=None):
                     print("%s: Port {%s} %s, box -- %s; %s" %
                           (n_IO, subcell.basic_name(), port_name, box.p1, box.p2))
                 #opticalIO is extracted from here
-                port_names += ' ' + port_name
+                port_names += f' {port_name}'
                 # find components which have an IO pin inside the Lumerical box:
-                components_IO = [c for c in components if any(
-                    [box.contains(p.center) for p in c.pins if p.type == PIN_TYPES.OPTICALIO])]
+                components_IO = [
+                    c
+                    for c in components
+                    if any(
+                        box.contains(p.center)
+                        for p in c.pins
+                        if p.type == PIN_TYPES.OPTICALIO
+                    )
+                ]
+
                 if len(components_IO) > 1:
                     raise Exception("Error - more than 1 optical IO connected to the port.")
-                if len(components_IO) == 0:
+                if not components_IO:
                     print("Warning - No optical IO connected to the port.")
-#          raise Exception("Error - 0 optical IO connected to the port.")
                 else:
                     p = [p for p in components_IO[0].pins if p.type == PIN_TYPES.OPTICALIO]
                     # change hard coded 'detector' string to pcell property (port.name)
@@ -123,7 +127,7 @@ def get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=None):
                     p[0].net = Net(idx=p[0].pin_name, pins=p)
                     ports_info.append(port_info(p[0].net, port_name))
                     if verbose:
-                        print(" - pin_name: %s" % (p[0].pin_name))
+                        print(f" - pin_name: {p[0].pin_name}")
 
             if iter1.cell().basic_name() == ("Lumerical_INTERCONNECT_Laser"):
                 n_IO += 1
@@ -137,19 +141,26 @@ def get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=None):
                     print("%s: Laser {%s}, box -- %s; %s" %
                           (n_IO, subcell.basic_name(), box.p1, box.p2))
                 # find components which have an IO pin inside the Lumerical box:
-                components_IO = [c for c in components if any(
-                    [box.contains(p.center) for p in c.pins if p.type == PIN_TYPES.OPTICALIO])]
+                components_IO = [
+                    c
+                    for c in components
+                    if any(
+                        box.contains(p.center)
+                        for p in c.pins
+                        if p.type == PIN_TYPES.OPTICALIO
+                    )
+                ]
+
                 if len(components_IO) > 1:
                     raise Exception("Error - more than 1 optical IO connected to the laser.")
-                if len(components_IO) == 0:
+                if not components_IO:
                     print("Warning - No optical IO connected to the laser.")
-#          raise Exception("Error - 0 optical IO connected to the laser.")
                 else:
                     p = [p for p in components_IO[0].pins if p.type == PIN_TYPES.OPTICALIO]
-                    p[0].pin_name += '_laser' + str(n_IO)
+                    p[0].pin_name += f'_laser{n_IO}'
                     laser_net = p[0].net = Net(idx=p[0].pin_name, pins=p)
                     if verbose:
-                        print(" - pin_name: %s" % (p[0].pin_name))
+                        print(f" - pin_name: {p[0].pin_name}")
 
         iter1.next()
 
@@ -157,10 +168,7 @@ def get_LumericalINTERCONNECT_analyzers_ansys(self, components, verbose=None):
     ports_info2 = sorted(ports_info, key=lambda d: d.port_name)
 
     # output:
-    detector_nets = []
-    for d in ports_info2:
-        detector_nets.append(d.detector_net)
-
+    detector_nets = [d.detector_net for d in ports_info2]
     return laser_net, detector_nets, port_names
 
 def get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self, components, verbose=True):
@@ -193,19 +201,31 @@ def get_LumericalINTERCONNECT_analyzers_from_text_label_ansys(self, components, 
         #if text.string.find("INTC_IO") > -1:
         if text.string.find("INTC_IO") > -1 or text.string.find("opt_in") > -1:  
             print( "\n- -label text: %s" %text.string)
-            port_names = port_names + " " + text.string
+            port_names = f"{port_names} {text.string}"
             pin_path = text.trans
             t = text
-            components_sorted = sorted([c for c in components],key=lambda x: x.trans.disp.to_p().distance(pya.Point(t.x, t.y).to_dtype(1)))
+            components_sorted = sorted(
+                list(components),
+                key=lambda x: x.trans.disp.to_p().distance(
+                    pya.Point(t.x, t.y).to_dtype(1)
+                ),
+            )
+
             # KLayout issue: waveguide location is always 0,0. So sorting distance won't work for waveguides. Ff the closest component is a waveguide, do the following. 
             # Get a list of all pins in the layout
             all_pin = []
             for c in components:
               all_pin += c.pins
-            print("All pins in the layout: %s" %all_pin)
-            #for p in all_pin, get the closest pin to the text label. Modify the pin properties 
-            pins_wg = sorted([p for p in all_pin],key=lambda x: x.center.distance(pya.Point(t.x, t.y).to_dtype(1))) 
-            print("Closest pin of the waveguide ") 
+            print(f"All pins in the layout: {all_pin}")
+            #for p in all_pin, get the closest pin to the text label. Modify the pin properties
+            pins_wg = sorted(
+                list(all_pin),
+                key=lambda x: x.center.distance(
+                    pya.Point(t.x, t.y).to_dtype(1)
+                ),
+            )
+
+            print("Closest pin of the waveguide ")
             pins_wg[0].display()
             pins_wg[0].pin_name = text.string
             pins_wg[0].type = 0
@@ -258,24 +278,30 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys(self, components, verb
         warning.setText("To run a simulation, you need to have optical IO in the layout." )
         pya.QMessageBox_StandardButton(warning.exec_())
         return False, False, False, False, False, False, False, False
-        
+
     dist_optin_c = components_sorted[0].trans.disp.to_p().distance(pya.Point(t.x, t.y).to_dtype(1))
     if verbose:
-        print(" - Found opt_in: %s, nearest GC: %s.  Locations: %s, %s. distance: %s" % (opt_in_dict[0][
-              'Text'], components_sorted[0].instance,  components_sorted[0].center, pya.Point(t.x, t.y), dist_optin_c))
+        print(
+            f" - Found opt_in: {opt_in_dict[0]['Text']}, nearest GC: {components_sorted[0].instance}.  Locations: {components_sorted[0].center}, {pya.Point(t.x, t.y)}. distance: {dist_optin_c}"
+        )
+
     if dist_optin_c > float(DFT['design-for-test']['opt_in']['max-distance-to-grating-coupler']) * 1000:
         warning = pya.QMessageBox()
         warning.setStandardButtons(pya.QMessageBox.Ok)
-        warning.setText("To run a simulation, you need to have an opt_in label with %s microns from the nearest grating coupler" % int(
-            DFT['design-for-test']['opt_in']['max-distance-to-grating-coupler']))
+        warning.setText(
+            f"To run a simulation, you need to have an opt_in label with {int(DFT['design-for-test']['opt_in']['max-distance-to-grating-coupler'])} microns from the nearest grating coupler"
+        )
+
         pya.QMessageBox_StandardButton(warning.exec_())
         return False, False, False, False, False, False, False, False
     # starting with the opt_in label, identify the sub-circuit, then GCs
     detector_GCs = [c for c in components if [p for p in c.pins if p.type == PIN_TYPES.OPTICALIO] if (
         c.trans.disp - components_sorted[0].trans.disp).to_p() != pya.DPoint(0, 0)]
     if verbose:
-        print("   N=%s, detector GCs: %s" %
-              (len(detector_GCs), [c.display() for c in detector_GCs]))
+        print(
+            f"   N={len(detector_GCs)}, detector GCs: {[c.display() for c in detector_GCs]}"
+        )
+
     vect_optin_GCs = [(c.trans.disp - components_sorted[0].trans.disp).to_p()
                       for c in detector_GCs]
 
@@ -284,7 +310,7 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys(self, components, verb
     p[0].pin_name += '_laser'
     laser_net = p[0].net = Net(idx=p[0].pin_name, pins=p)
     if verbose:
-        print(" - pin_name: %s" % (p[0].pin_name))
+        print(f" - pin_name: {p[0].pin_name}")
 
     if DFT['design-for-test']['tunable-laser']['wavelength'] == opt_in_dict[0]['wavelength']:
         wavelength_start, wavelength_stop, wavelength_points = float(DFT['design-for-test']['tunable-laser']['wavelength-start']), float(
@@ -304,11 +330,9 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys(self, components, verb
     else:
         warning = pya.QMessageBox()
         warning.setStandardButtons(pya.QMessageBox.Ok)
-        warning.setText("Unknown polarization: %s." % opt_in_dict[0]['pol'])
+        warning.setText(f"Unknown polarization: {opt_in_dict[0]['pol']}.")
         pya.QMessageBox_StandardButton(warning.exec_())
         return False, False, False, False, False, False, False, False
-    ignoreOpticalIOs = False
-
     # find the GCs in the circuit and connect detectors based on DFT rules
     ports_info = []
     port_name = 0
@@ -323,20 +347,18 @@ def get_LumericalINTERCONNECT_analyzers_from_opt_in_ansys(self, components, verb
             # detector_GCs[index] # component
 
             p = [p for p in detector_GCs[index].pins if p.type == PIN_TYPES.OPTICALIO]
-            p[0].pin_name += '_detector' + str(port_name)
+            p[0].pin_name += f'_detector{port_name}'
             p[0].net = Net(idx=p[0].pin_name, pins=p)
             ports_info.append(port_info(p[0].net, port_name))
             if verbose:
-                print(" - pin_name: %s" % (p[0].pin_name))
+                print(f" - pin_name: {p[0].pin_name}")
 
     # Sort the detectors:
     ports_info2 = sorted(ports_info, key=lambda d: d.port_name)
 
     # output:
-    detector_nets = []
-    for d in ports_info2:
-        detector_nets.append(d.detector_net)
-
+    detector_nets = [d.detector_net for d in ports_info2]
+    ignoreOpticalIOs = False
     return laser_net, detector_nets, wavelength_start, wavelength_stop, wavelength_points, orthogonal_identifier, ignoreOpticalIOs, detector_list
 
 
@@ -364,9 +386,12 @@ def identify_nets_ansys(self, verbose=False):
 
     # Loop through all pairs components (c1, c2); only look at touching components
     for c1 in components:
-        for c2 in components[c1.idx + 1: len(components)]:
+        for c2 in components[c1.idx + 1:]:
             if verbose:
-                print(" - Components: [%s-%s], [%s-%s].  Pins: %s, %s" % (c1.component, c1.idx, c2.component, c2.idx, c1.pins, c2.pins))
+                print(
+                    f" - Components: [{c1.component}-{c1.idx}], [{c2.component}-{c2.idx}].  Pins: {c1.pins}, {c2.pins}"
+                )
+
 
             if c1.polygon.bbox().overlaps(c2.polygon.bbox()) or c1.polygon.bbox().touches(c2.polygon.bbox()):
                 # Loop through all the pins (p1) in c1
@@ -374,8 +399,10 @@ def identify_nets_ansys(self, verbose=False):
                 for p1 in [p for p in c1.pins if p.type == PIN_TYPES.OPTICAL]:
                     for p2 in [p for p in c2.pins if p.type == PIN_TYPES.OPTICAL]:
                         if verbose:
-                            print(" - Components, pins: [%s-%s, %s, %s, %s], [%s-%s, %s, %s, %s]; difference: %s"
-                                  % (c1.component, c1.idx, p1.pin_name, p1.center, p1.rotation, c2.component, c2.idx, p2.pin_name, p2.center, p2.rotation, p1.center - p2.center))
+                            print(
+                                f" - Components, pins: [{c1.component}-{c1.idx}, {p1.pin_name}, {p1.center}, {p1.rotation}], [{c2.component}-{c2.idx}, {p2.pin_name}, {p2.center}, {p2.rotation}]; difference: {p1.center - p2.center}"
+                            )
+
                         # check that pins are facing each other, 180 degree
                         check1 = ((p1.rotation - p2.rotation) % 360) == 180
 
@@ -394,8 +421,10 @@ def identify_nets_ansys(self, verbose=False):
                             p2.net = nets[-1]
 
                             if verbose:
-                                print(" - pin-pin, net: %s, component, pin: [%s-%s, %s, %s, %s], [%s-%s, %s, %s, %s]"
-                                      % (net_idx, c1.component, c1.idx, p1.pin_name, p1.center, p1.rotation, c2.component, c2.idx, p2.pin_name, p2.center, p2.rotation))
+                                print(
+                                    f" - pin-pin, net: {net_idx}, component, pin: [{c1.component}-{c1.idx}, {p1.pin_name}, {p1.center}, {p1.rotation}], [{c2.component}-{c2.idx}, {p2.pin_name}, {p2.center}, {p2.rotation}]"
+                                )
+
 
     return nets, components
     
@@ -416,15 +445,12 @@ def check_components_models_ansys():
     components = cell.find_components()
     print("* Display list of components")
 
-    if not all([c.has_model() for c in components]):
+    if not all(c.has_model() for c in components):
         # missing models, find which one
         components_havemodels = [[c.has_model(), c.component, c.instance] for c in components]
-        missing_models = []
-        for c in components_havemodels:
-            if c[0] == False:
-                missing_models.append([c[1], c[2]])
-        missing = ("We have %s component(s) missing models, as follows: %s" %
-                   (len(missing_models), missing_models))
+        missing_models = [[c[1], c[2]] for c in components_havemodels if c[0] == False]
+        missing = f"We have {len(missing_models)} component(s) missing models, as follows: {missing_models}"
+
         v = pya.MessageBox.warning("Errors", missing, pya.MessageBox.Ok)
     else:
         print('check_components_models(): all models are present.')
