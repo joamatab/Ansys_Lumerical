@@ -26,8 +26,6 @@ from Lumerical.netlister import *
 class INTC_GUI(pya.QDialog):
   def getInputs(self):
     return (str(self.target.text), str(self.le.text))
-    print("Selected file: " + test_name)
-    print("Selected target: "+ target_name)
     
   def cancel(self):
     self.btnlistener = 'cancel'
@@ -148,23 +146,21 @@ def run_INTC(verbose=False):
   if not lumapi:
     print("SiEPIC.lumerical.interconnect.run_INTC: lumapi not loaded; reloading load_lumapi.")
     import sys
-    if sys.version_info[0] == 3:
-        if sys.version_info[1] < 4:
-            from imp import reload
-        else:
-            from importlib import reload
-    elif sys.version_info[0] == 2:
-        from imp import reload    
+    if (sys.version_info[0] == 3 and sys.version_info[1] < 4
+        or sys.version_info[0] != 3 and sys.version_info[0] == 2):
+      from imp import reload
+    elif sys.version_info[0] == 3:
+      from importlib import reload
     reload(load_lumapi)
 
   if not lumapi:
     print("SiEPIC.lumerical.interconnect.run_INTC: lumapi not loaded")
     pya.MessageBox.warning("Cannot load Lumerical Python integration.", "Cannot load Lumerical Python integration. \nSome SiEPIC-Tools Lumerical functionality will not be available.", pya.MessageBox.Cancel)
     return
-  
+
   if verbose:
     print(_globals.INTC)  # Python Lumerical INTERCONNECT integration handle
-  
+
   if not _globals.INTC: # Not running, start a new session
     _globals.INTC = lumapi.open('interconnect')
     if verbose:
@@ -187,7 +183,7 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
 
   from ..utils import get_technology, get_technology_by_name
   # get current technology
-  TECHNOLOGY = get_technology(query_activecellview_technology=True)  
+  TECHNOLOGY = get_technology(query_activecellview_technology=True)
   # load more technology details (CML file location)
   TECHNOLOGY = get_technology_by_name(TECHNOLOGY['technology_name'])
 
@@ -206,14 +202,15 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
   question.setDefaultButton(pya.QMessageBox.Yes)
   question.setText("SiEPIC-Tools will install the Compact Model Library (CML) in Lumerical INTERCONNECT for the currently active technology. \nThis includes the libraries %s.  \nProceed?" % libraries)
   informative_text = "\nTechnology: %s\n" % TECHNOLOGY['technology_name']
-  for i in range(0,len(TECHNOLOGY['INTC_CMLs_path'])):
-    informative_text += "Source CML file {}: {}\n".format(i+1, TECHNOLOGY['INTC_CMLs_path'][i])
-  informative_text += "Install location: %s" % dir_path
+  for i in range(len(TECHNOLOGY['INTC_CMLs_path'])):
+    informative_text += (
+        f"Source CML file {i + 1}: {TECHNOLOGY['INTC_CMLs_path'][i]}\n")
+  informative_text += f"Install location: {dir_path}"
   question.setInformativeText(informative_text)
   if(pya.QMessageBox_StandardButton(question.exec_()) == pya.QMessageBox.No):
     return
 
-  
+
   ##################################################################
   # Load Lumerical API: 
   from .. import _globals
@@ -223,25 +220,29 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
     print('SiEPIC.lumerical.interconnect.Setup_Lumerical_KLayoutPython_integration: lumapi not loaded')
     return
 
-  import os 
+  import os
   # Read INTC element library
   lumapi.evalScript(_globals.INTC, "out=library;")
   _globals.INTC_ELEMENTS=lumapi.getVar(_globals.INTC, "out")
 
   # Install technology CML if missing in INTC
   # check if the latest version of the CML is in KLayout's tech
-  if not ("design kits::"+TECHNOLOGY['technology_name'].lower()+"::"+TECHNOLOGY['INTC_CML_version'].lower().replace('.cml','').lower()) in _globals.INTC_ELEMENTS:
+  if ("design kits::" + TECHNOLOGY['technology_name'].lower() + "::" +
+      TECHNOLOGY['INTC_CML_version'].lower().replace(
+          '.cml', '').lower() not in _globals.INTC_ELEMENTS):
     # install CML
     print("Lumerical INTC, installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CML_path'], dir_path ) )
     lumapi.evalScript(_globals.INTC, "installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CML_path'], dir_path ) )
-    
+
   # Install other CMLs within technology
-  for i in range(0,len(TECHNOLOGY['INTC_CMLs_name'])):
-    if not ("design kits::"+TECHNOLOGY['INTC_CMLs_name'][i].lower()+"::"+TECHNOLOGY['INTC_CMLs_version'][i].lower().replace('.cml','').lower()) in _globals.INTC_ELEMENTS:
-        # install CML
-        print("Lumerical INTC, installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CMLs_path'][i], dir_path ) )
-        lumapi.evalScript(_globals.INTC, "installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CMLs_path'][i], dir_path ) )
-        
+  for i in range(len(TECHNOLOGY['INTC_CMLs_name'])):
+    if ("design kits::" + TECHNOLOGY['INTC_CMLs_name'][i].lower()
+        + "::" + TECHNOLOGY['INTC_CMLs_version'][i].lower().replace(
+            '.cml', '').lower() not in _globals.INTC_ELEMENTS):
+      # install CML
+      print("Lumerical INTC, installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CMLs_path'][i], dir_path ) )
+      lumapi.evalScript(_globals.INTC, "installdesignkit ('%s', '%s', true);" % (TECHNOLOGY['INTC_CMLs_path'][i], dir_path ) )
+
   # Re-Read INTC element library
   lumapi.evalScript(_globals.INTC, "out=library;")
   _globals.INTC_ELEMENTS=lumapi.getVar(_globals.INTC, "out")
@@ -252,13 +253,11 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
   # Save INTC element library to KLayout application data path
   if not os.path.exists(dir_path):
     os.makedirs(dir_path)
-  fh = open(os.path.join(dir_path,"Lumerical_INTC_CMLs.txt"), "w")
-  fh.writelines(_globals.INTC_ELEMENTS)
-  fh.close()
-  
+  with open(os.path.join(dir_path,"Lumerical_INTC_CMLs.txt"), "w") as fh:
+    fh.writelines(_globals.INTC_ELEMENTS)
   integration_success_message = "message('KLayout-Lumerical INTERCONNECT integration successful, CML library/libraries:\n"
   for cml_name in TECHNOLOGY['INTC_CMLs_name']:
-    integration_success_message += "design kits::"+cml_name.lower()+"\n"
+    integration_success_message += f"design kits::{cml_name.lower()}" + "\n"
   integration_success_message += "');switchtodesign;\n"
   lumapi.evalScript(_globals.INTC, integration_success_message)
 
@@ -266,7 +265,9 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
   question = pya.QMessageBox()
   question.setStandardButtons(pya.QMessageBox.Yes | pya.QMessageBox.No)
   question.setDefaultButton(pya.QMessageBox.Yes)
-  question.setText("Do you wish to see all the components in %s library?" % TECHNOLOGY['technology_name'])
+  question.setText(
+      f"Do you wish to see all the components in {TECHNOLOGY['technology_name']} library?"
+  )
 #  question.setInformativeText("Do you wish to see all the components in the library?")
   if(pya.QMessageBox_StandardButton(question.exec_()) == pya.QMessageBox.No):
     # lumapi.evalScript(_globals.INTC, "b=0:0.01:10; plot(b,sin(b),'Congratulations, Lumerical is now available from KLayout','','Congratulations, Lumerical is now available from KLayout');")
@@ -275,7 +276,7 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
 #  tech_elements = [ e.split('::')[-1] for e in intc_elements if "design kits::"+TECHNOLOGY['technology_name'].lower()+"::" in e ]
   tech_elements = [ e for e in intc_elements if "design kits::"+TECHNOLOGY['technology_name'].lower()+"::" in e ]
   i, x, y, num = 0, 0, 0, len(tech_elements)
-  for i in range(0, num):
+  for i in range(num):
     lumapi.evalScript(_globals.INTC, "a=addelement('%s'); setposition(a,%s,%s); " % (tech_elements[i],x,y) )
     y += 250
     if (i+1) % int(num**0.5) == 0:
@@ -285,7 +286,7 @@ def Setup_Lumerical_KLayoutPython_integration(verbose=False):
 def INTC_commandline(filename2, exct = False):
   print ("Running Lumerical INTERCONNECT using the command interface.")
   import sys, os, string
-  
+
   if sys.platform.startswith('linux'):
     import subprocess
     # Linux-specific code here...
@@ -293,23 +294,27 @@ def INTC_commandline(filename2, exct = False):
     # Location of INTERCONNECT program (this found from RPM installation)
     file_path = '/opt/lumerical/interconnect/bin/interconnect'
     subprocess.Popen([file_path, '-run', filename2])
-      
-  
+
+
   elif sys.platform.startswith('darwin'):
     # OSX specific
     import sys
     if int(sys.version[0]) > 2:
       import subprocess
-      subprocess.Popen(['/usr/bin/open -n /Applications/Lumerical/INTERCONNECT/INTERCONNECT.app', '-run', '--args -run %s' % filename2])          
+      subprocess.Popen([
+          '/usr/bin/open -n /Applications/Lumerical/INTERCONNECT/INTERCONNECT.app',
+          '-run',
+          f'--args -run {filename2}',
+      ])
     else:
       import commands
       print("Running INTERCONNECT")
-      runcmd = ('source ~/.bash_profile; /usr/bin/open -n /Applications/Lumerical/INTERCONNECT/INTERCONNECT.app --args -run %s' % filename2)
-      print("Running in shell: %s" % runcmd)
+      runcmd = f'source ~/.bash_profile; /usr/bin/open -n /Applications/Lumerical/INTERCONNECT/INTERCONNECT.app --args -run {filename2}'
+      print(f"Running in shell: {runcmd}")
       a=commands.getstatusoutput(runcmd)
       print(a)
 
-  
+
   elif sys.platform.startswith('win'):
     # Windows specific code here
     import subprocess
@@ -318,23 +323,23 @@ def INTC_commandline(filename2, exct = False):
     #Ansys: file_path_c the version is hardcoded and needs improvement 
     file_path_1 = os.path.join(pya.Application.instance().inst_path(),'lum_path.txt')
     file_path_2 = os.path.join(pya.Application.instance().klayout_path()[0], 'lum_path.txt')
-    if(os.path.isfile(file_path_1)==True):
+    if (os.path.isfile(file_path_1)==True):
       f = open(file_path_1, "r")
       path = f.read()
-      file_path_c = r'%s/bin/interconnect.exe'%path
+      file_path_c = f'{path}/bin/interconnect.exe'
       if(os.path.isfile(file_path_c)==True):
         subprocess.Popen(args=[file_path_c, '-run', filename2], shell=exct)
       else:
         raise Exception("Warning: The program could not find INTERCONNECT. Please specify the the location of INTERCONNECT manually.")
-    elif(os.path.isfile(file_path_2)==True):
+    elif (os.path.isfile(file_path_2)==True):
       f = open(file_path_2, "r")
       path = f.read()
-      file_path_c = r'%s/bin/interconnect.exe'%path
+      file_path_c = f'{path}/bin/interconnect.exe'
       if(os.path.isfile(file_path_c)==True):
         subprocess.Popen(args=[file_path_c, '-run', filename2], shell=exct)
       else:
         raise Exception("Warning: The program could not find INTERCONNECT. Please specify the the location of INTERCONNECT manually.")
-    
+
     else:
       raise Exception("Warning: The program could not find INTERCONNECT. Please specify the the location of INTERCONNECT manually.")
     '''  

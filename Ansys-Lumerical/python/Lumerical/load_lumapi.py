@@ -24,7 +24,7 @@ def load_lumapi(verbose=False):
               main(['install', 'numpy'])
       except ImportError:
           pass
-  
+
 
   import os, platform, sys, inspect
 
@@ -49,16 +49,15 @@ def load_lumapi(verbose=False):
       search_str = 'lumapi.py'
       matches = []
       for root, dirnames, filenames in os.walk(os.path.join(path_app,dir_path), followlinks=True):
-         for filename in fnmatch.filter(filenames, search_str):
-            matches.append(root)
+        matches.extend(root for _ in fnmatch.filter(filenames, search_str))
       if matches:
         if verbose:
           print(matches)
         path = matches[0]
 
-  print('Lumerical lumapi.py path: %s' % path)
+  print(f'Lumerical lumapi.py path: {path}')
 
-      
+
   # if it is still not found, ask the user
   if not os.path.exists(path):
     print('SiEPIC.lumerical.load_api: Lumerical software not found')
@@ -66,16 +65,15 @@ def load_lumapi(verbose=False):
     question.setStandardButtons(pya.QMessageBox.Yes | pya.QMessageBox.No)
     question.setDefaultButton(pya.QMessageBox.Yes)
     question.setText("Lumerical software not found. \nDo you wish to locate the software?")
-    if(pya.QMessageBox_StandardButton(question.exec_()) == pya.QMessageBox.Yes):
-      p = pya.QFileDialog()
-      p.setFileMode(pya.QFileDialog.DirectoryOnly)
-      p.exec_()
-      path = p.directory().path
-      if verbose:
-        print(path)
-    else:
+    if pya.QMessageBox_StandardButton(question.exec_()) != pya.QMessageBox.Yes:
       return    
-      
+
+    p = pya.QFileDialog()
+    p.setFileMode(pya.QFileDialog.DirectoryOnly)
+    p.exec_()
+    path = p.directory().path
+    if verbose:
+      print(path)
   # check if we have the correct path, containing lumapi.py
   if not os.path.exists(os.path.join(path,'lumapi.py')):
     # check sub-folders for lumapi.py
@@ -84,13 +82,12 @@ def load_lumapi(verbose=False):
     search_str = 'lumapi.py'
     matches = []
     for root, dirnames, filenames in os.walk(dir_path, followlinks=True):
-        for filename in fnmatch.filter(filenames, search_str):
-            matches.append(root)
+      matches.extend(root for _ in fnmatch.filter(filenames, search_str))
     if matches:
       if verbose:
         print(matches)
       path = matches[0]
-      
+
     if not os.path.exists(os.path.join(path,'lumapi.py')):
       print('SiEPIC.lumerical.load_api: Lumerical lumapi.py not found')
       warning = pya.QMessageBox()
@@ -99,75 +96,73 @@ def load_lumapi(verbose=False):
       warning.setInformativeText("Some SiEPIC-Tools Lumerical functionality will not be available.")
       pya.QMessageBox_StandardButton(warning.exec_())
       return
-    
+
   # Save the Lumerical software location to the KLayout configuration
   pya.Application.instance().set_config('siepic_tools_Lumerical_Python_folder', path)
 
-      
+
   CWD = os.path.dirname(os.path.abspath(__file__))
-  
-  
+
+
   if platform.system() == 'Darwin':
     # Check if any Lumerical tools are installed
-      ##################################################################
-      # Configure OSX Path to include Lumerical tools: 
-            
-      # Copy the launch control file into user's Library folder
-      # execute launctl to register the new paths
-      import os, fnmatch
-      siepic_tools_lumerical_folder = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+    ##################################################################
+    # Configure OSX Path to include Lumerical tools: 
 
-      os.environ['PATH'] += ':/Applications/Lumerical/FDTD Solutions/FDTD Solutions.app/Contents/MacOS' 
-      os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/MacOS' 
-      os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/API/Python'
-      os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/API/Matlab'
+    # Copy the launch control file into user's Library folder
+    # execute launctl to register the new paths
+    import os, fnmatch
+    siepic_tools_lumerical_folder = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+
+    os.environ['PATH'] += ':/Applications/Lumerical/FDTD Solutions/FDTD Solutions.app/Contents/MacOS'
+    os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/MacOS'
+    os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/API/Python'
+    os.environ['PATH'] += ':/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/API/Matlab'
 
 
-      # Also add path for use in the Terminal
-      home = os.path.expanduser("~")
-      if not os.path.exists(home + "/.bash_profile"):
-        text_bash =  '\n'
-        text_bash += '# Setting PATH for Lumerical API\n'
-        text_bash += 'export PATH=/Applications/Lumerical/FDTD\ Solutions/FDTD\ Solutions.app/Contents/MacOS:$PATH\n'
-        text_bash += 'export PATH=/Applications/Lumerical/MODE\ Solutions/MODE\ Solutions.app/Contents/MacOS:$PATH\n'
-        text_bash += 'export PATH=/Applications/Lumerical/DEVICE/DEVICE.app/Contents/MacOS:$PATH\n'
-        text_bash += 'export PATH=/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/MacOS:$PATH\n'
-        text_bash +=  '\n'
-        file = open(home + "/.bash_profile", 'w')
+    # Also add path for use in the Terminal
+    home = os.path.expanduser("~")
+    if not os.path.exists(f"{home}/.bash_profile"):
+      text_bash = '\n' + '# Setting PATH for Lumerical API\n'
+      text_bash += 'export PATH=/Applications/Lumerical/FDTD\ Solutions/FDTD\ Solutions.app/Contents/MacOS:$PATH\n'
+      text_bash += 'export PATH=/Applications/Lumerical/MODE\ Solutions/MODE\ Solutions.app/Contents/MacOS:$PATH\n'
+      text_bash += 'export PATH=/Applications/Lumerical/DEVICE/DEVICE.app/Contents/MacOS:$PATH\n'
+      text_bash += 'export PATH=/Applications/Lumerical/INTERCONNECT/INTERCONNECT.app/Contents/MacOS:$PATH\n'
+      text_bash +=  '\n'
+      with open(f"{home}/.bash_profile", 'w') as file:
         file.write (text_bash)
-        file.close()
-
-      if not path in sys.path:
-        sys.path.append(path)
+    if path not in sys.path:
+      sys.path.append(path)
       # Fix for Lumerical Python OSX API, for < March 5 2018 versions:
-      if not os.path.exists(os.path.join(path, 'libinterop-api.1.dylib')):
-        lumapi_osx_fix = siepic_tools_lumerical_folder + '/lumapi_osx_fix.bash'
-        lumapi_osx_fix_lib = path + '/libinterop-api.so.1'
+    if not os.path.exists(os.path.join(path, 'libinterop-api.1.dylib')):
+      lumapi_osx_fix = f'{siepic_tools_lumerical_folder}/lumapi_osx_fix.bash'
+      lumapi_osx_fix_lib = f'{path}/libinterop-api.so.1'
+      if not os.path.exists(lumapi_osx_fix_lib):
+        warning = pya.QMessageBox()
+        warning.setStandardButtons(pya.QMessageBox.Ok)
+        warning.setText("We need to do a fix in the Lumerical software folder for Python integration. \nPlease note that for this to work, we assume that Lumerical INTERCONNECT is installed in the default path: /Applications/Lumerical/INTERCONNECT/\nPlease enter the following in a Terminal.App window, and enter your root password when prompted. Ok to continue when done.")
+        warning.setInformativeText(f"source {lumapi_osx_fix}")
+        pya.QMessageBox_StandardButton(warning.exec_())
         if not os.path.exists(lumapi_osx_fix_lib):
-          warning = pya.QMessageBox()
-          warning.setStandardButtons(pya.QMessageBox.Ok)
-          warning.setText("We need to do a fix in the Lumerical software folder for Python integration. \nPlease note that for this to work, we assume that Lumerical INTERCONNECT is installed in the default path: /Applications/Lumerical/INTERCONNECT/\nPlease enter the following in a Terminal.App window, and enter your root password when prompted. Ok to continue when done.")
-          warning.setInformativeText("source %s"%lumapi_osx_fix)
-          pya.QMessageBox_StandardButton(warning.exec_())
-          if not os.path.exists(lumapi_osx_fix_lib):
-            import sys
-            if int(sys.version[0]) > 2:
-              import subprocess
-              subprocess.Popen(['/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal', '-run', lumapi_osx_fix])          
-            else:
-              import commands
-              print (commands.getstatusoutput('/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal %s' %lumapi_osx_fix ))
-      
-  # Windows
+          import sys
+          if int(sys.version[0]) > 2:
+            import subprocess
+            subprocess.Popen(['/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal', '-run', lumapi_osx_fix])
+          else:
+            import commands
+            print(
+                commands.getstatusoutput(
+                    f'/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal {lumapi_osx_fix}'
+                ))
+
   elif platform.system() == 'Windows': 
     if os.path.exists(path):
-      if not path in sys.path:
+      if path not in sys.path:
         sys.path.append(path) # windows
-      os.chdir(path) 
-  # Linux    
+      os.chdir(path)
   elif platform.system() == 'Linux': 
     if os.path.exists(path):
-      if not path in sys.path:
+      if path not in sys.path:
         sys.path.append(path) # windows
       os.chdir(path) 
 
@@ -181,10 +176,10 @@ def load_lumapi(verbose=False):
       print('import lumapi failed')
       return
 
-  print('import lumapi success, %s' % _globals.LUMAPI )
+  print(f'import lumapi success, {_globals.LUMAPI}')
 #    _globals.INTC = lumapi.open('interconnect')
 #    _globals.FDTD = lumapi.open('fdtd')
-  
+
   os.chdir(CWD)
   
 load_lumapi(verbose=True)
